@@ -1,3 +1,24 @@
+# Purpose of this fork
+
+This fork is meant to work around Godot 3's C# Web Export bugs (see [This issue](https://github.com/godotengine/godot/issues/101122)).
+
+It does this by doing the following:
+
+1. Replacing all `System.Net.Http.HttpClient` references with a new, similar interface, `IHttpClient`.
+   This allows dependency injection, which allows a custom HttpClient implementation, and is also a better coding practice.
+2. Massively simplifying the package to further remove dependencies which don't play well with web exports. This does come at the cost of some convenience functions, see the commits for more details.
+
+To use the new package, you must first set `Firebase.Database.Http.HttpClientProvider.Constructor` to a delegate that returns the concrete `HttpClient` implementation, otherwise you will get a `NullReferenceException`. For example:
+
+```csharp
+Firebase.Database.Http.HttpClientProvider.Constructor = GetClient;
+
+public IHttpClient GetClient(bool allowAutoRedirect = false, TimeSpan? timeout = null)
+{
+	//return new MyHttpClientImpl(...);
+}
+```
+
 # FirebaseDatabase.net
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/ep8xw22cexktghba?svg=true)](https://ci.appveyor.com/project/bezysoftware/firebase-database-dotnet)
 
