@@ -2,7 +2,6 @@ namespace Firebase.Database.Query
 {
     using System;
     using System.Collections.Generic;
-    using System.Reactive.Linq;
     using System.Threading.Tasks;
 
     using Firebase.Database.Http;
@@ -10,6 +9,7 @@ namespace Firebase.Database.Query
 
     using Newtonsoft.Json;
     using System.Net;
+    using Firebase.Observables;
 
     /// <summary>
     /// Represents a firebase query. 
@@ -172,7 +172,7 @@ namespace Firebase.Database.Query
         /// <returns> Observable stream of <see cref="FirebaseEvent{T}"/>. </returns>
         public IObservable<FirebaseEvent<T>> AsObservable<T>(EventHandler<ContinueExceptionEventArgs<FirebaseException>> exceptionHandler = null, string elementRoot = "")
         {
-            return Observable.Create<FirebaseEvent<T>>(observer =>
+            return AnonymousObservable<FirebaseEvent<T>>.Create(observer =>
             {
                 var sub = new FirebaseSubscription<T>(observer, this, elementRoot, new FirebaseCache<T>());
                 sub.ExceptionThrown += exceptionHandler;

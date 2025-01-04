@@ -3,20 +3,16 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Reactive.Linq;
-    using System.Reactive.Subjects;
     using System.Threading;
     using System.Threading.Tasks;
 
     using Firebase.Database.Extensions;
     using Firebase.Database.Query;
     using Firebase.Database.Streaming;
-    using System.Reactive.Threading.Tasks;
     using System.Linq.Expressions;
     using Internals;
     using Newtonsoft.Json;
     using System.Reflection;
-    using System.Reactive.Disposables;
 
     /// <summary>
     /// The real-time Database which synchronizes online and offline data. 
@@ -26,15 +22,10 @@
     {
         private readonly ChildQuery childQuery;
         private readonly string elementRoot;
-        private readonly StreamingOptions streamingOptions;
-        private readonly Subject<FirebaseEvent<T>> subject;
-        private readonly InitialPullStrategy initialPullStrategy;
         private readonly bool pushChanges;
         private readonly FirebaseCache<T> firebaseCache;
 
         private bool isSyncRunning;
-        private IObservable<FirebaseEvent<T>> observable;
-        private FirebaseSubscription<T> firebaseSubscription;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RealtimeDatabase{T}"/> class.
@@ -51,12 +42,9 @@
         {
             this.childQuery = childQuery;
             this.elementRoot = elementRoot;
-            this.streamingOptions = streamingOptions;
-            this.initialPullStrategy = initialPullStrategy;
             this.pushChanges = pushChanges;
             this.Database = offlineDatabaseFactory(typeof(T), filenameModifier);
             this.firebaseCache = new FirebaseCache<T>(new OfflineCacheAdapter<string, T>(this.Database));
-            this.subject = new Subject<FirebaseEvent<T>>();
 
             this.PutHandler = setHandler ?? new SetHandler<T>();
 
@@ -68,11 +56,6 @@
         /// Event raised whenever an exception is thrown in the synchronization thread. Exception thrown in there are swallowed, so this event is the only way to get to them. 
         /// </summary>
         public event EventHandler<ExceptionEventArgs> SyncExceptionThrown;
-
-        /// <summary>
-        /// Event raised when an exception is thrown inside <see cref="firebaseSubscription"/>. Whether they are swalled or not is up to the handler.
-        /// </summary>
-        public event EventHandler<ContinueExceptionEventArgs<FirebaseException>> StreamingExceptionThrown;
 
         /// <summary>
         /// Gets the backing Database.
@@ -125,8 +108,6 @@
             {
                 this.Database[fullKey.Item1] = new OfflineEntry(fullKey.Item1, value, serializedObject, priority, syncOptions, true);
             }
-
-            this.subject.OnNext(new FirebaseEvent<T>(key, setObject.Object, setObject == null ? FirebaseEventType.Delete : FirebaseEventType.InsertOrUpdate, FirebaseEventSource.Offline));
         }
 
         /// <summary>
@@ -148,37 +129,6 @@
         }
 
         /// <summary>
-        /// Fetches everything from the remote database.
-        /// </summary>
-        /// <param name="retryCount">
-        /// The number of attempts of running the source observable before failing.
-        /// null means infinite retries, 0 means it won't execute at all, and 1 means it will only try once.
-        /// </param>
-        public async Task PullAsync(int? retryCount = null)
-        {
-            var existingEntries = await Observable.Defer(() => this.childQuery.OnceAsync<T>().ToObservable())
-                .RetryAfterDelay<IReadOnlyCollection<FirebaseObject<T>>, FirebaseException>(
-                    this.childQuery.Client.Options.SyncPeriod,
-                    ex => ex.StatusCode == System.Net.HttpStatusCode.OK, // OK implies the request couldn't complete due to network error. 
-                    retryCount)
-                .Select(e => this.ResetDatabaseFromInitial(e, false))
-                .SelectMany(e => e)
-                .Do(e => 
-                {
-                    this.Database[e.Key] = new OfflineEntry(e.Key, e.Object, 1, SyncOptions.None);
-                    this.subject.OnNext(new FirebaseEvent<T>(e.Key, e.Object, FirebaseEventType.InsertOrUpdate, FirebaseEventSource.OnlinePull));
-                })
-                .ToList();
-
-            // Remove items not stored online
-            foreach (var item in this.Database.Keys.Except(existingEntries.Select(f => f.Key)).ToList())
-            {
-                this.Database.Remove(item);
-                this.subject.OnNext(new FirebaseEvent<T>(item, null, FirebaseEventType.Delete, FirebaseEventSource.OnlinePull));
-            }
-        }
-
-        /// <summary>
         /// Retrieves all offline items currently stored in local database.
         /// </summary>
         public IEnumerable<FirebaseObject<T>> Once()
@@ -189,145 +139,14 @@
                 .ToList();
         }
 
-        /// <summary> 
-        /// Starts observing the real-time Database. Events will be fired both when change is done locally and remotely.
-        /// </summary> 
-        /// <returns> Stream of <see cref="FirebaseEvent{T}"/>. </returns>
-        public IObservable<FirebaseEvent<T>> AsObservable()
-        {
-            if (!this.isSyncRunning)
-            {
-                this.isSyncRunning = true;
-                Task.Factory.StartNew(this.SynchronizeThread, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            }
-
-            if (this.observable == null)
-            {
-                var initialData = Observable.Return(FirebaseEvent<T>.Empty(FirebaseEventSource.Offline));
-                if(this.Database.TryGetValue(this.elementRoot, out OfflineEntry oe))
-                {
-                    initialData = Observable.Return(oe)
-                        .Where(offlineEntry => !string.IsNullOrEmpty(offlineEntry.Data) && offlineEntry.Data != "null" && !offlineEntry.IsPartial)
-                        .Select(offlineEntry => new FirebaseEvent<T>(offlineEntry.Key, offlineEntry.Deserialize<T>(), FirebaseEventType.InsertOrUpdate, FirebaseEventSource.Offline));
-                }
-                else if(this.Database.Count > 0)
-                {
-                    initialData = this.Database
-                        .Where(kvp => !string.IsNullOrEmpty(kvp.Value.Data) && kvp.Value.Data != "null" && !kvp.Value.IsPartial)
-                        .Select(kvp => new FirebaseEvent<T>(kvp.Key, kvp.Value.Deserialize<T>(), FirebaseEventType.InsertOrUpdate, FirebaseEventSource.Offline))
-                        .ToList()
-                        .ToObservable();
-                }
-
-                this.observable = initialData
-                    .Merge(this.subject)
-                    .Merge(this.GetInitialPullObservable()
-                            .RetryAfterDelay<IReadOnlyCollection<FirebaseObject<T>>, FirebaseException>(
-                                this.childQuery.Client.Options.SyncPeriod, 
-                                ex => ex.StatusCode == System.Net.HttpStatusCode.OK) // OK implies the request couldn't complete due to network error. 
-                            .Select(e => this.ResetDatabaseFromInitial(e))
-                            .SelectMany(e => e)
-                            .Do(this.SetObjectFromInitialPull)
-                            .Select(e => new FirebaseEvent<T>(e.Key, e.Object, e.Object == null ? FirebaseEventType.Delete : FirebaseEventType.InsertOrUpdate, FirebaseEventSource.OnlineInitial))
-                            .Concat(Observable.Create<FirebaseEvent<T>>(observer => this.InitializeStreamingSubscription(observer))))
-                            .Do(next => { }, e => this.observable = null, () => this.observable = null)
-                    .Replay()
-                    .RefCount();
-            }
-
-            return this.observable;
-        }
-
         public void Dispose()
         {
-            this.subject.OnCompleted();
-            this.firebaseSubscription?.Dispose();
-        }
-
-        private IReadOnlyCollection<FirebaseObject<T>> ResetDatabaseFromInitial(IReadOnlyCollection<FirebaseObject<T>> collection, bool onlyWhenInitialEverything = true)
-        {
-            if (onlyWhenInitialEverything && this.initialPullStrategy != InitialPullStrategy.Everything)
-            {
-                return collection;
-            }
-
-            // items which are in local db, but not in the online collection
-            var extra = this.Once()
-                            .Select(f => f.Key)
-                            .Except(collection.Select(c => c.Key))
-                            .Select(k => new FirebaseObject<T>(k, null));
-
-            return collection.Concat(extra).ToList();
-        }
-
-        private void SetObjectFromInitialPull(FirebaseObject<T> e)
-        {
-            // set object with no sync only if it doesn't exist yet 
-            // and the InitialPullStrategy != Everything
-            // this attempts to deal with scenario when you are offline, have local changes and go online
-            // in this case having the InitialPullStrategy set to everything would basically purge all local changes
-            if (!this.Database.ContainsKey(e.Key) || this.Database[e.Key].SyncOptions == SyncOptions.None || this.Database[e.Key].SyncOptions == SyncOptions.Pull || this.initialPullStrategy != InitialPullStrategy.Everything)
-            {
-                this.Database[e.Key] = new OfflineEntry(e.Key, e.Object, 1, SyncOptions.None);
-            }
-        }
-
-        private IObservable<IReadOnlyCollection<FirebaseObject<T>>> GetInitialPullObservable()
-        {
-            FirebaseQuery query;
-            switch (this.initialPullStrategy)
-            {
-                case InitialPullStrategy.MissingOnly:
-                    query = this.childQuery.OrderByKey().StartAt(() => this.GetLatestKey());
-                    break;
-                case InitialPullStrategy.Everything:
-                    query = this.childQuery;
-                    break;
-                case InitialPullStrategy.None:
-                default:
-                    return Observable.Empty<IReadOnlyCollection<FirebaseEvent<T>>>();
-            }
-
-            if (string.IsNullOrWhiteSpace(this.elementRoot))
-            {
-                return Observable.Defer(() => query.OnceAsync<T>().ToObservable());
-            }
-            
-            // there is an element root, which indicates the target location is not a collection but a single element
-            return Observable.Defer(async () => Observable.Return(await query.OnceSingleAsync<T>().ConfigureAwait(false)).Select(e => new[] { new FirebaseObject<T>(this.elementRoot, e) }));
-        }
-
-        private IDisposable InitializeStreamingSubscription(IObserver<FirebaseEvent<T>> observer)
-        {
-            var completeDisposable = Disposable.Create(() => this.isSyncRunning = false);
-
-            switch (this.streamingOptions)
-            {
-                case StreamingOptions.LatestOnly:
-                    // stream since the latest key
-                    var queryLatest = this.childQuery.OrderByKey().StartAt(() => this.GetLatestKey());
-                    this.firebaseSubscription = new FirebaseSubscription<T>(observer, queryLatest, this.elementRoot, this.firebaseCache);
-                    this.firebaseSubscription.ExceptionThrown += this.OnStreamingExceptionThrown;
-
-                    return new CompositeDisposable(this.firebaseSubscription.Run(), completeDisposable);
-                case StreamingOptions.Everything:
-                    // stream everything
-                    var queryAll = this.childQuery;
-                    this.firebaseSubscription = new FirebaseSubscription<T>(observer, queryAll, this.elementRoot, this.firebaseCache);
-                    this.firebaseSubscription.ExceptionThrown += this.OnStreamingExceptionThrown;
-
-                    return new CompositeDisposable(this.firebaseSubscription.Run(), completeDisposable);
-                default:
-                    break;
-            }
-
-            return completeDisposable;
         }
 
         private void SetAndRaise(string key, OfflineEntry obj, FirebaseEventSource eventSource = FirebaseEventSource.Offline)
         {
             this.Database[key] = obj;
-            this.subject.OnNext(new FirebaseEvent<T>(key, obj?.Deserialize<T>(), string.IsNullOrEmpty(obj?.Data) || obj?.Data == "null" ? FirebaseEventType.Delete : FirebaseEventType.InsertOrUpdate, eventSource));
+            obj?.Deserialize<T>();
         }
 
         private async void SynchronizeThread()
@@ -423,11 +242,6 @@
         private async Task ResetSyncAfterPush(Task task, string key, T obj)
         {
             await ResetSyncAfterPush(task, key).ConfigureAwait(false);
-
-            if (this.streamingOptions == StreamingOptions.None)
-            {
-                this.subject.OnNext(new FirebaseEvent<T>(key, obj, obj == null ? FirebaseEventType.Delete : FirebaseEventType.InsertOrUpdate, FirebaseEventSource.OnlinePush));
-            }
         }
 
         private async Task ResetSyncAfterPush(Task task, string key)
@@ -449,11 +263,6 @@
                 item.SyncOptions = SyncOptions.None;
                 this.Database[key] = item;
             }
-        }
-
-        protected void OnStreamingExceptionThrown(object sender, ContinueExceptionEventArgs<FirebaseException> e)
-        {
-            this.StreamingExceptionThrown?.Invoke(this, e);
         }
 
         private Tuple<string, string, bool> GenerateFullKey<TProperty>(string key, Expression<Func<T, TProperty>> propertyGetter, SyncOptions syncOptions)

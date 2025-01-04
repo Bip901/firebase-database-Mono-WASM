@@ -4,6 +4,7 @@
     using System.Collections.ObjectModel;
 
     using Firebase.Database.Streaming;
+    using Firebase.Observables;
 
     /// <summary>
     /// Extensions for <see cref="IObservable{T}"/>.
@@ -20,7 +21,7 @@
         {
             var collection = new ObservableCollection<T>();
 
-            observable.Subscribe(f =>
+            observable.Subscribe(new AnonymousObserver<FirebaseEvent<T>>(f =>
             {
                 if (f.EventType == FirebaseEventType.InsertOrUpdate)
                 {
@@ -36,7 +37,7 @@
                 {
                     collection.Remove(f.Object);
                 }
-            });
+            }));
 
             return collection;
         }
