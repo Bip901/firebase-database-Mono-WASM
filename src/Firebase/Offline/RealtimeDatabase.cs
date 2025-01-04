@@ -25,8 +25,6 @@
         private readonly bool pushChanges;
         private readonly FirebaseCache<T> firebaseCache;
 
-        private bool isSyncRunning;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="RealtimeDatabase{T}"/> class.
         /// </summary>
@@ -48,7 +46,6 @@
 
             this.PutHandler = setHandler ?? new SetHandler<T>();
 
-            this.isSyncRunning = true;
             Task.Factory.StartNew(this.SynchronizeThread, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
@@ -151,7 +148,7 @@
 
         private async void SynchronizeThread()
         {
-            while (this.isSyncRunning)
+            while (true)
             {
                 try
                 {
@@ -168,28 +165,8 @@
                     this.SyncExceptionThrown?.Invoke(this, new ExceptionEventArgs(ex));
                 }
 
-                await Task.Delay(childQuery.Client.Options.SyncPeriod).ConfigureAwait(false);
+                await TaskDelayProvider.Constructor(childQuery.Client.Options.SyncPeriod).ConfigureAwait(false);
             }
-        }
-
-        private string GetLatestKey()
-        {
-            const string forbidden = @".$[]#/";
-            var key = this.Database.OrderBy(o => o.Key, StringComparer.Ordinal).LastOrDefault().Key ?? " ";
-
-            if (!string.IsNullOrWhiteSpace(key))
-            {
-                var ch = (char)(key[key.Length - 1] + 1);
-                while (forbidden.Contains(ch))
-                {
-                    ch = (char)(ch + 1);
-                }
-
-                key = key.Substring(0, key.Length - 1) + ch;
-
-            }
-
-            return key;
         }
 
         private async Task PushEntriesAsync(IEnumerable<KeyValuePair<string, OfflineEntry>> pushEntries)

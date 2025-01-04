@@ -89,7 +89,7 @@ namespace Firebase.Database.Streaming
                     statusCode = response.StatusCode;
                     response.EnsureSuccessStatusCode();
 
-                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                    using (var stream = await response.Content.ReadAsStreamAsync(cancel.Token).ConfigureAwait(false))
                     using (var reader = this.client.Options.SubscriptionStreamReaderFactory(stream))
                     {
                         while (true)
@@ -138,7 +138,7 @@ namespace Firebase.Database.Streaming
                         break;
                     }
 
-                    await Task.Delay(2000).ConfigureAwait(false);
+                    await TaskDelayProvider.Constructor(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                 }
             }
         }
