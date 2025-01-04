@@ -10,6 +10,7 @@ namespace Firebase.Database.Query
     using Newtonsoft.Json;
     using System.Net;
     using Firebase.Observables;
+    using System.Threading;
 
     /// <summary>
     /// Represents a firebase query. 
@@ -45,9 +46,10 @@ namespace Firebase.Database.Query
         /// Queries the firebase server once returning collection of items.
         /// </summary>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken"> Optional cancellation token. </param>
         /// <typeparam name="T"> Type of elements. </typeparam>
         /// <returns> Collection of <see cref="FirebaseObject{T}"/> holding the entities returned by server. </returns>
-        public async Task<IReadOnlyCollection<FirebaseObject<T>>> OnceAsync<T>(TimeSpan? timeout = null)
+        public async Task<IReadOnlyCollection<FirebaseObject<T>>> OnceAsync<T>(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var url = string.Empty;
 
@@ -60,7 +62,7 @@ namespace Firebase.Database.Query
                 throw new FirebaseException("Couldn't build the url", string.Empty, string.Empty, HttpStatusCode.OK, ex);
             }
 
-            return await this.GetClient(timeout).GetObjectDictionaryCollectionAsync<T>(url, Client.Options.JsonSerializerSettings)
+            return await this.GetClient(timeout).GetObjectDictionaryCollectionAsync<T>(url, Client.Options.JsonSerializerSettings, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -68,9 +70,10 @@ namespace Firebase.Database.Query
         /// Assumes given query is pointing to a list of object of type <typeparamref name="T"/> and retrieves it.
         /// </summary>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken"> Optional cancellation token. </param>
         /// <typeparam name="T"> Type of elements. </typeparam>
         /// <returns> Single object of type <typeparamref name="T"/>. </returns>
-        public async Task<IReadOnlyCollection<FirebaseObject<T>>> OnceAsListAsync<T>(TimeSpan? timeout = null)
+        public async Task<IReadOnlyCollection<FirebaseObject<T>>> OnceAsListAsync<T>(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var url = string.Empty;
 
@@ -83,7 +86,7 @@ namespace Firebase.Database.Query
                 throw new FirebaseException("Couldn't build the url", string.Empty, string.Empty, HttpStatusCode.OK, ex);
             }
 
-            return await this.GetClient(timeout).GetObjectCollectionAsync<T>(url, Client.Options.JsonSerializerSettings)
+            return await this.GetClient(timeout).GetObjectCollectionAsync<T>(url, Client.Options.JsonSerializerSettings, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -91,9 +94,10 @@ namespace Firebase.Database.Query
         /// Assumes given query is pointing to a single object of type <typeparamref name="T"/> and retrieves it.
         /// </summary>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken"> Cancellation token. </param>
         /// <typeparam name="T"> Type of elements. </typeparam>
         /// <returns> Single object of type <typeparamref name="T"/>. </returns>
-        public async Task<T> OnceSingleAsync<T>(TimeSpan? timeout = null)
+        public async Task<T> OnceSingleAsync<T>(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
 
             var responseData = string.Empty;
@@ -111,16 +115,16 @@ namespace Firebase.Database.Query
 
             try
             {
-                var response = await this.GetClient(timeout).GetAsync(url).ConfigureAwait(false);
+                var response = await this.GetClient(timeout).GetAsync(url, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
-                responseData = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                responseData = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
                 response.Dispose();
 
                 return JsonConvert.DeserializeObject<T>(responseData, Client.Options.JsonSerializerSettings);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 throw new FirebaseException(url, string.Empty, responseData, statusCode, ex);
             }
@@ -130,8 +134,8 @@ namespace Firebase.Database.Query
         /// Returns the response data as json string.
         /// </summary>
         /// <param name="timeout"> Optional timeout value. </param>
-        /// <returns> Single object of type <typeparamref name="T"/>. </returns>
-        public async Task<string> OnceAsJsonAsync(TimeSpan? timeout = null)
+        /// <param name="cancellationToken"> Cancellation token. </param>
+        public async Task<string> OnceAsJsonAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var responseData = string.Empty;
             var statusCode = HttpStatusCode.OK;
@@ -148,16 +152,16 @@ namespace Firebase.Database.Query
 
             try
             {
-                var response = await this.GetClient(timeout).GetAsync(url).ConfigureAwait(false);
+                var response = await this.GetClient(timeout).GetAsync(url, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
-                responseData = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                responseData = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
                 response.Dispose();
 
                 return responseData;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 throw new FirebaseException(url, string.Empty, responseData, statusCode, ex);
             }
@@ -202,21 +206,22 @@ namespace Firebase.Database.Query
         /// <param name="data"> The json data. </param>
         /// <param name="generateKeyOffline"> Specifies whether the key should be generated offline instead of online. </param>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken"> Optional cancellation token. </param>
         /// <returns> Resulting firebase object with populated key. </returns>
-        public async Task<FirebaseObject<string>> PostAsync(string data, bool generateKeyOffline = true, TimeSpan? timeout = null)
+        public async Task<FirebaseObject<string>> PostAsync(string data, bool generateKeyOffline = true, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             // post generates a new key server-side, while put can be used with an already generated local key
             if (generateKeyOffline)
             {
                 var key = FirebaseKeyGenerator.Next();
-                await new ChildQuery(this, () => key, this.Client).PutAsync(data).ConfigureAwait(false);
+                await new ChildQuery(this, () => key, this.Client).PutAsync(data, timeout, cancellationToken).ConfigureAwait(false);
 
                 return new FirebaseObject<string>(key, data);
             }
             else
             {
                 var c = this.GetClient(timeout);
-                var sendData = await this.SendAsync(c, data, HttpMethod.Post).ConfigureAwait(false);
+                var sendData = await this.SendAsync(c, data, HttpMethod.Post, cancellationToken).ConfigureAwait(false);
                 var result = JsonConvert.DeserializeObject<PostResult>(sendData, Client.Options.JsonSerializerSettings);
 
                 return new FirebaseObject<string>(result.Name, data);
@@ -228,12 +233,13 @@ namespace Firebase.Database.Query
         /// </summary> 
         /// <param name="data"> The json data. </param>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns> The <see cref="Task"/>. </returns>
-        public Task PatchAsync(string data, TimeSpan? timeout = null)
+        public Task PatchAsync(string data, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var c = this.GetClient(timeout);
 
-            return this.Silent().SendAsync(c, data, HttpMethod.Patch);
+            return this.Silent().SendAsync(c, data, HttpMethod.Patch, cancellationToken);
         }
 
         /// <summary>
@@ -241,20 +247,22 @@ namespace Firebase.Database.Query
         /// </summary> 
         /// <param name="data"> The json data. </param>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns> The <see cref="Task"/>. </returns>
-        public Task PutAsync(string data, TimeSpan? timeout = null)
+        public Task PutAsync(string data, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var c = this.GetClient(timeout);
 
-            return this.Silent().SendAsync(c, data, HttpMethod.Put);
+            return this.Silent().SendAsync(c, data, HttpMethod.Put, cancellationToken);
         }
 
         /// <summary>
         /// Deletes data from given location.
         /// </summary>
         /// <param name="timeout"> Optional timeout value. </param>
+        /// <param name="cancellationToken"> Optional cancellation token. </param>
         /// <returns> The <see cref="Task"/>. </returns>
-        public async Task DeleteAsync(TimeSpan? timeout = null)
+        public async Task DeleteAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var c = this.GetClient(timeout);
             var url = string.Empty;
@@ -272,13 +280,13 @@ namespace Firebase.Database.Query
 
             try
             {
-                var result = await c.DeleteAsync(url).ConfigureAwait(false);
+                var result = await c.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
                 statusCode = result.StatusCode;
-                responseData = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
+                responseData = await result.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 result.EnsureSuccessStatusCode();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 throw new FirebaseException(url, string.Empty, responseData, statusCode, ex);
             }
@@ -321,7 +329,7 @@ namespace Firebase.Database.Query
             return this.client.GetHttpClient();
         }
 
-        private async Task<string> SendAsync(IHttpClient client, string data, HttpMethod method)
+        private async Task<string> SendAsync(IHttpClient client, string data, HttpMethod method, CancellationToken cancellationToken)
         {
             var responseData = string.Empty;
             var statusCode = HttpStatusCode.OK;
@@ -341,7 +349,7 @@ namespace Firebase.Database.Query
 
             try
             {
-                var result = await client.SendAsync(message).ConfigureAwait(false);
+                var result = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
                 statusCode = result.StatusCode;
                 responseData = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
 

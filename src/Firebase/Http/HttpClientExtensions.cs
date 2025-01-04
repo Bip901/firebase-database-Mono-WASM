@@ -8,6 +8,7 @@ namespace Firebase.Database.Http
 
     using Newtonsoft.Json;
     using System.Net;
+    using System.Threading;
 
     /// <summary>
     /// The http client extensions for object deserializations.
@@ -20,19 +21,20 @@ namespace Firebase.Database.Http
         /// <param name="client"> The client. </param>
         /// <param name="requestUri"> The request uri. </param>  
         /// <param name="jsonSerializerSettings"> The specific JSON Serializer Settings. </param>  
+        /// <param name="cancellationToken"> Cancellation token. </param>  
         /// <typeparam name="T"> The type of entities the collection should contain. </typeparam>
         /// <returns> The <see cref="Task"/>. </returns>
         public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectDictionaryCollectionAsync<T>(this IHttpClient client, string requestUri,
-            JsonSerializerSettings jsonSerializerSettings)
+            JsonSerializerSettings jsonSerializerSettings, CancellationToken cancellationToken)
         {
             var responseData = string.Empty;
             var statusCode = HttpStatusCode.OK;
 
             try
             {
-                var response = await client.GetAsync(requestUri).ConfigureAwait(false);
+                var response = await client.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
-                responseData = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                responseData = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
 
@@ -45,7 +47,7 @@ namespace Firebase.Database.Http
 
                 return dictionary.Select(item => new FirebaseObject<T>(item.Key, item.Value)).ToList();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 throw new FirebaseException(requestUri, string.Empty, responseData, statusCode, ex);
             }
@@ -57,19 +59,20 @@ namespace Firebase.Database.Http
         /// <param name="client"> The client. </param>
         /// <param name="requestUri"> The request uri. </param>  
         /// <param name="jsonSerializerSettings"> The specific JSON Serializer Settings. </param>  
+        /// <param name="cancellationToken"> Cancellation token. </param>  
         /// <typeparam name="T"> The type of entities the collection should contain. </typeparam>
         /// <returns> The <see cref="Task"/>. </returns>
         public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectCollectionAsync<T>(this IHttpClient client, string requestUri,
-            JsonSerializerSettings jsonSerializerSettings)
+            JsonSerializerSettings jsonSerializerSettings, CancellationToken cancellationToken)
         {
             var responseData = string.Empty;
             var statusCode = HttpStatusCode.OK;
 
             try
             {
-                var response = await client.GetAsync(requestUri).ConfigureAwait(false);
+                var response = await client.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
-                responseData = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                responseData = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
 
@@ -81,7 +84,7 @@ namespace Firebase.Database.Http
 
                 return list.Select((item, index) => new FirebaseObject<T>(index.ToString(), item)).ToList();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 throw new FirebaseException(requestUri, string.Empty, responseData, statusCode, ex);
             }
