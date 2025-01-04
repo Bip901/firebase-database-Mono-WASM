@@ -2,10 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <PackageId>FirebaseDatabase.net</PackageId>
-    <PackageVersion>4.2.0</PackageVersion>
+    <PackageId>FirebaseDatabase.Mono.Wasm</PackageId>
+    <PackageVersion>4.2.0-rc1</PackageVersion>
     <Authors>Step Up Labs, Inc.</Authors>
-    <Description>Complex C# library for Firebase Realtime Database built on top of Firebase REST API. Among others it supports following:
+    <Description>Complex C# library for Firebase Realtime Database built on top of Firebase REST
+      API. Among others it supports following:
 
       * Offline storage
       * Querying using available filters
@@ -16,9 +17,10 @@
       Streaming changes (both online and offline) are done using Reactive Extensions.
     </Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageIconUrl>https://github.com/step-up-labs/firebase-database-dotnet/raw/master/art/FirebaseLogo.128x128.png</PackageIconUrl>
-    <PackageProjectUrl>https://github.com/step-up-labs/firebase-database-dotnet</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/step-up-labs/firebase-database-dotnet/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageIconUrl>
+      https://github.com/Bip901/firebase-database-dotnet/raw/master/art/FirebaseLogo.128x128.png</PackageIconUrl>
+    <PackageProjectUrl>https://github.com/Bip901/firebase-database-dotnet</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/Bip901/firebase-database-dotnet/blob/master/LICENSE</PackageLicenseUrl>
     <Copyright>Step Up Labs, Inc. 2019</Copyright>
     <PackageTags>Firebase Database Realtime</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -27,6 +29,7 @@
     <DocumentationFile>bin\$(Configuration)\netstandard2.0\Firebase.xml</DocumentationFile>
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
