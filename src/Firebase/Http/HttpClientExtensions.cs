@@ -95,8 +95,9 @@ namespace Firebase.Database.Http
         /// </summary>
         /// <param name="data"> The json data. </param>
         /// <param name="elementType"> The type of entities the collection should contain. </param>
+        /// <param name="jsonSerializerSettings"> Json settings. </param>
         /// <returns> The <see cref="Task"/>.  </returns>
-        public static IEnumerable<FirebaseObject<object>> GetObjectCollection(this string data, Type elementType)
+        public static IEnumerable<FirebaseObject<object>> GetObjectCollection(this string data, Type elementType, JsonSerializerSettings jsonSerializerSettings = null)
         {
             var dictionaryType = typeof(Dictionary<,>).MakeGenericType(typeof(string), elementType);
             IDictionary dictionary = null;
@@ -104,14 +105,14 @@ namespace Firebase.Database.Http
             if (data.StartsWith("["))
             {
                 var listType = typeof(List<>).MakeGenericType(elementType);
-                var list = JsonConvert.DeserializeObject(data, listType) as IList;
+                var list = JsonConvert.DeserializeObject(data, listType, jsonSerializerSettings) as IList;
                 dictionary = Activator.CreateInstance(dictionaryType) as IDictionary;
                 var index = 0;
                 foreach (var item in list) dictionary.Add(index++.ToString(), item);
             }
             else
             {
-                dictionary = JsonConvert.DeserializeObject(data, dictionaryType) as IDictionary;
+                dictionary = JsonConvert.DeserializeObject(data, dictionaryType, jsonSerializerSettings) as IDictionary;
             }
 
             if (dictionary == null)

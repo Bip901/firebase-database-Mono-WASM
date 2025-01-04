@@ -18,17 +18,20 @@ namespace Firebase.Database.Streaming
     {
         private readonly IDictionary<string, T> dictionary;
         private readonly bool isDictionaryType;
-        private readonly JsonSerializerSettings serializerSettings = new JsonSerializerSettings()
-        {
-            ObjectCreationHandling = ObjectCreationHandling.Replace
-        };
+        private readonly JsonSerializerSettings deserializeSettings;
+        private readonly JsonSerializerSettings replaceDeserializeSettings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FirebaseCache{T}"/> class.
         /// </summary>
-        public FirebaseCache() 
+        public FirebaseCache(JsonSerializerSettings deserializeSettings) 
             : this(new Dictionary<string, T>())
         {
+            this.deserializeSettings = deserializeSettings;
+            replaceDeserializeSettings = new JsonSerializerSettings(deserializeSettings)
+            {
+                ObjectCreationHandling = ObjectCreationHandling.Replace
+            };
         }
 
         /// <summary>
@@ -116,7 +119,7 @@ namespace Firebase.Database.Streaming
                 // insert data into dictionary and return it as a collection of FirebaseObject
                 var dictionary = obj as IDictionary;
                 var valueType = obj.GetType().GenericTypeArguments[1];
-                var objectCollection = data.GetObjectCollection(valueType);
+                var objectCollection = data.GetObjectCollection(valueType, deserializeSettings);
 
                 foreach (var item in objectCollection)
                 {
@@ -144,7 +147,7 @@ namespace Firebase.Database.Streaming
                 var valueType = obj.GetType();
 
                 // firebase sends strings without double quotes
-                var targetObject = valueType == typeof(string) ? data.ToString() : JsonConvert.DeserializeObject(data, valueType);
+                var targetObject = valueType == typeof(string) ? data.ToString() : JsonConvert.DeserializeObject(data, valueType, deserializeSettings);
 
                 if ((valueType.GetTypeInfo().IsPrimitive || valueType == typeof(string) || typeof(IEnumerable).IsAssignableFrom(valueType)) && primitiveObjSetter != null)
                 {
@@ -153,7 +156,7 @@ namespace Firebase.Database.Streaming
                 }
                 else
                 {
-                    JsonConvert.PopulateObject(data, obj, this.serializerSettings);
+                    JsonConvert.PopulateObject(data, obj, this.replaceDeserializeSettings);
                 }
 
                 // Triggers an upsert if dictionary is an OfflineDatabase.

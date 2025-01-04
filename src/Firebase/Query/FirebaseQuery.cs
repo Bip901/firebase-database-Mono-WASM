@@ -178,7 +178,7 @@ namespace Firebase.Database.Query
         {
             return AnonymousObservable<FirebaseEvent<T>>.Create(observer =>
             {
-                var sub = new FirebaseSubscription<T>(observer, this, elementRoot, new FirebaseCache<T>());
+                var sub = new FirebaseSubscription<T>(observer, this, elementRoot, new FirebaseCache<T>(Client.Options.JsonSerializerSettings));
                 sub.ExceptionThrown += exceptionHandler;
                 return sub.Run();
             });
