@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Net.Http;
+using Firebase.Database.Http;
 
 namespace Firebase
 {
@@ -7,10 +7,7 @@ namespace Firebase
     {
         public IHttpClientProxy GetHttpClient(TimeSpan? timeout)
         {
-            var client = new HttpClient();
-            if (timeout != null) {
-                client.Timeout = timeout.Value;
-            }
+            var client = HttpClientProvider.Constructor(timeout: timeout);
 
             return new SimpleHttpClientProxy(client);
         }

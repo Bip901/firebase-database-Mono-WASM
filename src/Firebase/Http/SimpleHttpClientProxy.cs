@@ -1,17 +1,17 @@
-﻿using System.Net.Http;
+﻿using Firebase.Database.Http;
 
 namespace Firebase
 {
     internal sealed class SimpleHttpClientProxy : IHttpClientProxy
     {
-        private readonly HttpClient _httpClient;
+        private readonly IHttpClient _httpClient;
 
-        public SimpleHttpClientProxy(HttpClient httpClient)
+        public SimpleHttpClientProxy(IHttpClient httpClient)
         {
             _httpClient = httpClient;
         }
 
-        public HttpClient GetHttpClient()
+        public IHttpClient GetHttpClient()
         {
             return _httpClient;
         }

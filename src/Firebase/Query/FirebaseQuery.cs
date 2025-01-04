@@ -2,12 +2,10 @@ namespace Firebase.Database.Query
 {
     using System;
     using System.Collections.Generic;
-    using System.Net.Http;
     using System.Reactive.Linq;
     using System.Threading.Tasks;
 
     using Firebase.Database.Http;
-    using Firebase.Database.Offline;
     using Firebase.Database.Streaming;
 
     using Newtonsoft.Json;
@@ -235,7 +233,7 @@ namespace Firebase.Database.Query
         {
             var c = this.GetClient(timeout);
 
-            return this.Silent().SendAsync(c, data, new HttpMethod("PATCH"));
+            return this.Silent().SendAsync(c, data, HttpMethod.Patch);
         }
 
         /// <summary>
@@ -313,7 +311,7 @@ namespace Firebase.Database.Query
             return url;
         }
 
-        private HttpClient GetClient(TimeSpan? timeout = null)
+        private IHttpClient GetClient(TimeSpan? timeout = null)
         {
             if (this.client == null)
             {
@@ -323,7 +321,7 @@ namespace Firebase.Database.Query
             return this.client.GetHttpClient();
         }
 
-        private async Task<string> SendAsync(HttpClient client, string data, HttpMethod method)
+        private async Task<string> SendAsync(IHttpClient client, string data, HttpMethod method)
         {
             var responseData = string.Empty;
             var statusCode = HttpStatusCode.OK;
@@ -339,10 +337,7 @@ namespace Firebase.Database.Query
                 throw new FirebaseException("Couldn't build the url", requestData, responseData, statusCode, ex);
             }
 
-            var message = new HttpRequestMessage(method, url)
-            {
-                Content = new StringContent(requestData)
-            };
+            var message = new HttpRequestMessage(method, url, requestData);
 
             try
             {

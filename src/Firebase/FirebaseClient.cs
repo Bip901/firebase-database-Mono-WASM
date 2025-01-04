@@ -1,14 +1,8 @@
-using System.Net.Http;
-
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Firebase.Database.Tests")]
 
 namespace Firebase.Database
 {
     using System;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
-
-    using Firebase.Database.Offline;
     using Firebase.Database.Query;
 
     /// <summary>

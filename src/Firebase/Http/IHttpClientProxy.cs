@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Net.Http;
+using Firebase.Database.Http;
 
 namespace Firebase
 {
     public interface IHttpClientProxy : IDisposable
     {
-        HttpClient GetHttpClient();
+        IHttpClient GetHttpClient();
     }
 }

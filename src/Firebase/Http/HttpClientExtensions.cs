@@ -4,7 +4,6 @@ namespace Firebase.Database.Http
     using System.Collections;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Net.Http;
     using System.Threading.Tasks;
 
     using Newtonsoft.Json;
@@ -23,7 +22,7 @@ namespace Firebase.Database.Http
         /// <param name="jsonSerializerSettings"> The specific JSON Serializer Settings. </param>  
         /// <typeparam name="T"> The type of entities the collection should contain. </typeparam>
         /// <returns> The <see cref="Task"/>. </returns>
-        public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectDictionaryCollectionAsync<T>(this HttpClient client, string requestUri,
+        public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectDictionaryCollectionAsync<T>(this IHttpClient client, string requestUri,
             JsonSerializerSettings jsonSerializerSettings)
         {
             var responseData = string.Empty;
@@ -60,7 +59,7 @@ namespace Firebase.Database.Http
         /// <param name="jsonSerializerSettings"> The specific JSON Serializer Settings. </param>  
         /// <typeparam name="T"> The type of entities the collection should contain. </typeparam>
         /// <returns> The <see cref="Task"/>. </returns>
-        public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectCollectionAsync<T>(this HttpClient client, string requestUri,
+        public static async Task<IReadOnlyCollection<FirebaseObject<T>>> GetObjectCollectionAsync<T>(this IHttpClient client, string requestUri,
             JsonSerializerSettings jsonSerializerSettings)
         {
             var responseData = string.Empty;

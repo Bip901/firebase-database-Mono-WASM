@@ -75,9 +75,10 @@
         }
 
         /// <summary>
-        /// Specify HttpClient factory to manage <see cref="System.Net.Http.HttpClient" /> lifecycle.
+        /// Specify HttpClient factory to manage HttpClient lifecycle.
         /// </summary>
-        public IHttpClientFactory HttpClientFactory {
+        public IHttpClientFactory HttpClientFactory
+        {
             get;
             set;
         }

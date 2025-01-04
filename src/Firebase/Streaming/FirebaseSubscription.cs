@@ -1,10 +1,7 @@
 namespace Firebase.Database.Streaming
 {
     using System;
-    using System.Diagnostics;
     using System.Linq;
-    using System.Net.Http;
-    using System.Net.Http.Headers;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -12,6 +9,7 @@ namespace Firebase.Database.Streaming
 
     using Newtonsoft.Json.Linq;
     using System.Net;
+    using Firebase.Database.Http;
 
     /// <summary>
     /// The firebase subscription.
@@ -26,19 +24,13 @@ namespace Firebase.Database.Streaming
         private readonly string elementRoot;
         private readonly FirebaseClient client;
 
-        private static HttpClient http;
+        private static IHttpClient http;
 
         static FirebaseSubscription()
         {
-            var handler = new HttpClientHandler
-            {
-                AllowAutoRedirect = true,
-                CookieContainer = new CookieContainer()
-            };
+            var httpClient = HttpClientProvider.Constructor(allowAutoRedirect: true);
 
-            var httpClient = new HttpClient(handler, true);
-
-            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            httpClient.DefaultRequestHeaders.Add("Accept", "text/event-stream");
 
             http = httpClient;
         }
@@ -92,7 +84,7 @@ namespace Firebase.Database.Streaming
                     var serverEvent = FirebaseServerEventType.KeepAlive;
 
                     var client = this.GetHttpClient();
-                    var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, this.cancel.Token).ConfigureAwait(false);
+                    var response = await client.SendAsync(request, this.cancel.Token).ConfigureAwait(false);
 
                     statusCode = response.StatusCode;
                     response.EnsureSuccessStatusCode();
@@ -112,7 +104,7 @@ namespace Firebase.Database.Streaming
                             }
 
                             var tuple = line.Split(new[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
-                            
+
                             switch (tuple[0].ToLower())
                             {
                                 case "event":
@@ -194,9 +186,9 @@ namespace Firebase.Database.Streaming
                     var data = result["data"].ToString();
 
                     // If an elementRoot parameter is provided, but it's not in the cache, it was already deleted. So we can return an empty object.
-                    if(string.IsNullOrWhiteSpace(this.elementRoot) || !this.cache.Contains(this.elementRoot))
+                    if (string.IsNullOrWhiteSpace(this.elementRoot) || !this.cache.Contains(this.elementRoot))
                     {
-                        if(path == "/" && data == string.Empty)
+                        if (path == "/" && data == string.Empty)
                         {
                             this.observer.OnNext(FirebaseEvent<T>.Empty(FirebaseEventSource.OnlineStream));
                             return;
@@ -222,7 +214,7 @@ namespace Firebase.Database.Streaming
             }
         }
 
-        private HttpClient GetHttpClient()
+        private IHttpClient GetHttpClient()
         {
             return http;
         }
