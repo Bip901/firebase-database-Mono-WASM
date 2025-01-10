@@ -10,7 +10,7 @@
     /// </summary>
     public class NonBlockingStreamReader : TextReader
     {
-        private const int DefaultBufferSize = 16000;
+        private const int DefaultBufferSize = 16384;
 
         private readonly Stream stream;
         private readonly byte[] buffer;
