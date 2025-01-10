@@ -177,6 +177,10 @@ namespace Firebase.Database.Streaming
             {
                 return string.Empty;
             }
+            else if (type == typeof(byte[]))
+            {
+                return Array.Empty<byte>();
+            }
             else
             {
                 return Activator.CreateInstance(type);
