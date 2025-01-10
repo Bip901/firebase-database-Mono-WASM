@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>FirebaseDatabase.Mono.Wasm</PackageId>
-    <PackageVersion>4.2.0-rc1</PackageVersion>
+    <PackageVersion>4.2.1</PackageVersion>
     <Authors>Step Up Labs, Inc.</Authors>
     <Description>Complex C# library for Firebase Realtime Database built on top of Firebase REST
       API. Among others it supports following:
